@@ -1,0 +1,17 @@
+# build output
+_site/
+__pycache__/
+*.pyc
+tools/renders/
+
+# macOS / Dropbox
+.DS_Store
+Icon?
+.dropbox*
+
+# board design files and the archive stay in Dropbox only for now
+hardware/
+archive/
+
+# built by the Pages workflow, not committed
+releases/

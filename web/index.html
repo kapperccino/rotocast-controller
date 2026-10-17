@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rotocast Controller</title>
+<style>
+  :root {
+    --bg: #0c0f12; --panel: #161b21; --panel-2: #1d242c; --rule: #2a333d;
+    --ink: #e8ecf0; --dim: #8e99a4; --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --red: #f03a30; --amber: #f8a400; --green: #19d61e; --cyan: #20c0f8;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  a { color: var(--cyan); }
+  button { font: inherit; color: var(--ink); background: var(--panel-2); border: 1px solid var(--rule);
+    border-radius: 6px; padding: 8px 14px; cursor: pointer; }
+  button:hover { border-color: var(--dim); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primary { background: var(--cyan); color: #04222e; border-color: var(--cyan); font-weight: 600; }
+  button.go { background: var(--green); color: #052a07; border-color: var(--green); font-weight: 700; }
+  button.stopbtn { background: var(--red); color: #fff; border-color: var(--red); font-weight: 700; }
+  input[type=number] { font: inherit; width: 5.5em; padding: 7px 8px; background: var(--bg); color: var(--ink);
+    border: 1px solid var(--rule); border-radius: 6px; font-family: var(--mono); }
+  input[type=text] { font: inherit; width: 100%; padding: 8px 10px; background: var(--bg); color: var(--ink);
+    border: 1px solid var(--rule); border-radius: 6px; font-family: var(--mono); }
+
+  header { display: flex; align-items: center; gap: 16px; padding: 14px 20px; border-bottom: 1px solid var(--rule);
+    background: var(--panel); position: sticky; top: 0; z-index: 2; flex-wrap: wrap; }
+  header h1 { font-size: 1.05rem; margin: 0; letter-spacing: .02em; }
+  header h1 small { color: var(--dim); font-weight: 400; margin-left: 8px; }
+  .spacer { flex: 1; }
+  .conn { display: flex; align-items: center; gap: 10px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--dim); }
+  .dot.on { background: var(--green); box-shadow: 0 0 8px var(--green); }
+
+  nav { display: flex; gap: 2px; padding: 0 20px; background: var(--panel); border-bottom: 1px solid var(--rule); overflow-x: auto; }
+  nav button { background: none; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 10px 14px; color: var(--dim); }
+  nav button.active { color: var(--ink); border-bottom-color: var(--cyan); }
+
+  main { padding: 20px; max-width: 1100px; margin: 0 auto; }
+  section[hidden] { display: none; }
+  .notice { background: var(--panel); border: 1px solid var(--rule); border-left: 4px solid var(--amber); padding: 12px 16px; border-radius: 6px; margin-bottom: 18px; }
+  .notice.bad { border-left-color: var(--red); }
+  .notice.ok { border-left-color: var(--green); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+  .tile { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 14px; min-height: 86px; }
+  .tile .k { font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+  .tile .v { font-family: var(--mono); font-size: 1.7rem; font-variant-numeric: tabular-nums; margin-top: 4px; line-height: 1.15; }
+  .tile .s { color: var(--dim); font-size: .85rem; margin-top: 2px; }
+  .tile.state { grid-column: span 2; }
+  .tile.state .v { font-size: 2.2rem; font-weight: 700; }
+  .c-red { color: var(--red); } .c-amber { color: var(--amber); } .c-green { color: var(--green); } .c-cyan { color: var(--cyan); } .c-dim { color: var(--dim); }
+  .bg-red { background: #3a1512; } .bg-amber { background: #3a2a0a; } .bg-green { background: #0f2e12; }
+
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 16px 0; }
+  .row label { color: var(--dim); font-size: .85rem; }
+  .bar { height: 10px; background: var(--bg); border-radius: 5px; overflow: hidden; margin-top: 8px; border: 1px solid var(--rule); }
+  .bar i { display: block; height: 100%; background: var(--green); width: 0; transition: width .3s; }
+  canvas { width: 100%; height: 140px; background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; display: block; }
+  .strip { margin-top: 14px; padding: 12px 16px; border-radius: 8px; font-weight: 600; display: none; }
+
+  table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--rule); font-size: .92rem; }
+  th { color: var(--dim); font-weight: 500; font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; }
+  td.st { font-family: var(--mono); font-weight: 700; }
+
+  .steps { counter-reset: s; padding: 0; list-style: none; max-width: 64ch; }
+  .steps li { position: relative; padding: 10px 0 10px 44px; border-bottom: 1px solid var(--rule); }
+  .steps li::before { counter-increment: s; content: counter(s); position: absolute; left: 0; top: 10px; width: 28px; height: 28px;
+    border-radius: 50%; background: var(--panel-2); border: 1px solid var(--rule); display: grid; place-items: center; font-family: var(--mono); font-size: .85rem; }
+  code, kbd { font-family: var(--mono); background: var(--panel-2); padding: 1px 6px; border-radius: 4px; font-size: .9em; }
+  .prompt { background: var(--panel); border: 1px solid var(--amber); color: var(--amber); padding: 14px 18px; border-radius: 8px;
+    font-size: 1.2rem; font-weight: 600; margin: 14px 0; display: none; }
+  .progress { height: 14px; background: var(--bg); border: 1px solid var(--rule); border-radius: 7px; overflow: hidden; margin: 10px 0; }
+  .progress i { display: block; height: 100%; background: var(--cyan); width: 0; transition: width .2s; }
+  pre.console { background: #07090b; border: 1px solid var(--rule); border-radius: 8px; padding: 12px; height: 420px; overflow: auto;
+    font-family: var(--mono); font-size: .82rem; line-height: 1.45; white-space: pre-wrap; word-break: break-all; margin: 0 0 10px; color: #c9d1d9; }
+  pre.console .j { color: var(--dim); }
+  pre.console .tx { color: var(--cyan); }
+  p { max-width: 66ch; }
+  h2 { font-size: 1.15rem; margin: 0 0 12px; }
+  h3 { font-size: .95rem; margin: 22px 0 8px; color: var(--dim); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Rotocast Controller <small>flash &amp; diagnostics</small></h1>
+  <div class="spacer"></div>
+  <div class="conn">
+    <span class="dot" id="dot"></span>
+    <span id="connText" class="c-dim">Not connected</span>
+    <button class="primary" id="connectBtn">Connect</button>
+    <button id="disconnectBtn" hidden>Disconnect</button>
+  </div>
+</header>
+
+<nav>
+  <button data-tab="dash" class="active">Dashboard</button>
+  <button data-tab="test">Self-test</button>
+  <button data-tab="update">Update firmware</button>
+  <button data-tab="new">New board</button>
+  <button data-tab="console">Console</button>
+</nav>
+
+<main>
+  <div class="notice bad" id="noSerial" hidden>
+    This page talks to the controller over USB using Web Serial, which only <b>Chrome</b> and <b>Edge</b> on a Mac or PC support.
+    Safari and Firefox will not work. Open this address in Chrome.
+  </div>
+  <div class="notice" id="hint">
+    Plug the controller into this computer with USB and click <b>Connect</b>, then pick the port that says
+    <b>Pico</b> or <b>MicroPython</b> (on a Mac it is <code>usbmodem…</code>). Motors stay off until you press Start.
+  </div>
+
+  <!-- ================= DASHBOARD ================= -->
+  <section id="tab-dash">
+    <div class="grid">
+      <div class="tile state" id="tState"><div class="k">State</div><div class="v c-dim">—</div><div class="s" id="tStateS">waiting for the controller</div></div>
+      <div class="tile"><div class="k">Run time</div><div class="v" id="tTimer">00:00:00</div></div>
+      <div class="tile"><div class="k">Speed</div><div class="v" id="tRpm">—</div><div class="s" id="tRpmS">cage RPM</div></div>
+      <div class="tile"><div class="k">Ratio</div><div class="v" id="tRatio">—</div><div class="s" id="tRatioS">inner cage</div></div>
+      <div class="tile"><div class="k">Driver M1 · outer</div><div class="v" id="tM1">—</div><div class="s">load <span id="tL1">—</span></div><div class="bar"><i id="bL1"></i></div></div>
+      <div class="tile"><div class="k">Driver M2 · inner</div><div class="v" id="tM2">—</div><div class="s">load <span id="tL2">—</span></div><div class="bar"><i id="bL2"></i></div></div>
+      <div class="tile"><div class="k">Fan</div><div class="v" id="tFan">—</div><div class="s" id="tFanS"></div></div>
+      <div class="tile"><div class="k">Controller</div><div class="v" id="tFw" style="font-size:1.2rem">—</div><div class="s" id="tFwS"></div></div>
+    </div>
+    <div class="strip" id="strip"></div>
+
+    <h3>Controls</h3>
+    <div class="row">
+      <button class="go" id="startBtn" disabled>Start</button>
+      <button class="stopbtn" id="stopBtn" disabled>Stop</button>
+      <span style="width:16px"></span>
+      <label>RPM</label><input type="number" id="rpmIn" min="1" max="25" step="1" value="10"><button id="rpmBtn" disabled>Set</button>
+      <span style="width:8px"></span>
+      <label>Ratio</label><input type="number" id="ratioIn" min="0" max="2" step="0.05" value="1.00"><button id="ratioBtn" disabled>Set</button>
+      <div class="spacer"></div>
+      <button id="rebootBtn" disabled>Reboot controller</button>
+    </div>
+
+    <h3>Driver load while running <span style="text-transform:none;letter-spacing:0">(StallGuard, 0 = stall, 510 = no load — higher is more torque margin)</span></h3>
+    <canvas id="chart" width="1000" height="140"></canvas>
+  </section>
+
+  <!-- ================= SELF-TEST ================= -->
+  <section id="tab-test" hidden>
+    <h2>Hardware self-test</h2>
+    <p>Checks every part of the controller in about a minute. It will ask you to press the button and turn the knob,
+      jog each motor slowly for three seconds, and run the fan. Keep hands clear of the cages. The same test runs
+      on the machine by holding the knob down while powering it on.</p>
+    <div class="row"><button class="primary" id="testBtn" disabled>Run self-test</button><span id="testState" class="c-dim"></span></div>
+    <div class="prompt" id="testPrompt"></div>
+    <table id="testTable" hidden><thead><tr><th>Check</th><th>Result</th><th>Detail</th></tr></thead><tbody></tbody></table>
+    <div class="notice" id="testSummary" hidden></div>
+  </section>
+
+  <!-- ================= UPDATE ================= -->
+  <section id="tab-update" hidden>
+    <h2>Update the firmware on a connected controller</h2>
+    <p>For a controller that already runs. Takes about 20 seconds; saved speed and ratio are kept. For a blank
+      board use <a href="#" data-goto="new">New board</a> instead.</p>
+    <div class="grid" style="max-width:520px">
+      <div class="tile"><div class="k">On this controller</div><div class="v" id="uBoard">—</div></div>
+      <div class="tile"><div class="k">Available here</div><div class="v" id="uSite">—</div><div class="s" id="uSiteS"></div></div>
+    </div>
+    <div class="row"><button class="primary" id="updateBtn" disabled>Install</button><span id="updateState" class="c-dim"></span></div>
+    <div class="progress" id="updateProg" hidden><i></i></div>
+    <div class="notice" id="updateDone" hidden></div>
+  </section>
+
+  <!-- ================= NEW BOARD ================= -->
+  <section id="tab-new" hidden>
+    <h2>Flash a brand-new board</h2>
+    <p>A fresh board has nothing on it. One file installs both MicroPython and the controller firmware, and the
+      board does the work itself — no software needed on this computer.</p>
+    <ol class="steps">
+      <li><a id="uf2Link" href="#" download>Download the firmware file</a> <span id="uf2Name" class="c-dim"></span></li>
+      <li><b>Hold the BOOTSEL button</b> on the board and, while holding it, plug the USB cable into this computer. Let go.
+        A drive called <code>RPI-RP2</code> appears on the desktop or in the file manager.</li>
+      <li>Drag the downloaded <code>.uf2</code> file onto the <code>RPI-RP2</code> drive. The drive disappears by itself when it is done (about 10 seconds).
+        Ignore any "disk not ejected properly" message — that is normal.</li>
+      <li>The board restarts: the LED lights red and the screen shows the <b>ROTOCAST</b> splash, then <b>STOP</b>.
+        If the LED is red but the screen stays dark, the board still needs the two Rev 2 reworks (SW3 and Q3) — see the project README.</li>
+      <li>Click <b>Connect</b> at the top, pick the new port, and run the <a href="#" data-goto="test">self-test</a>.</li>
+    </ol>
+    <p class="c-dim">The same file also works to update a controller that already runs the firmware: it resets the saved speed and ratio to defaults.</p>
+  </section>
+
+  <!-- ================= CONSOLE ================= -->
+  <section id="tab-console" hidden>
+    <h2>Console</h2>
+    <p>Everything the controller prints, plus the telemetry it sends once a second. Type a command and press Enter —
+      <code>help</code> lists them.</p>
+    <pre class="console" id="console"></pre>
+    <div class="row">
+      <input type="text" id="cmdIn" placeholder="status" disabled>
+      <button id="cmdBtn" disabled>Send</button>
+      <button id="logBtn" disabled>Download sweep log</button>
+      <button id="clearBtn">Clear</button>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  // ---------------- tabs ----------------
+  const tabs = ['dash', 'test', 'update', 'new', 'console'];
+  function goto(t) {
+    tabs.forEach(x => { $('tab-' + x).hidden = x !== t; });
+    document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
+  }
+  document.querySelectorAll('nav button').forEach(b => b.onclick = () => goto(b.dataset.tab));
+  document.querySelectorAll('[data-goto]').forEach(a => a.onclick = e => { e.preventDefault(); goto(a.dataset.goto); });
+
+  // ---------------- site info (firmware available here) ----------------
+  let manifest = null;
+  fetch('firmware/manifest.json').then(r => r.json()).then(m => {
+    manifest = m;
+    $('uSite').textContent = 'v' + m.version;
+    $('uSiteS').textContent = m.files.map(f => f.name).join(', ');
+    updateButtons();
+  }).catch(() => { $('uSiteS').textContent = 'firmware files not found on this site'; });
+  fetch('releases/latest.json').then(r => r.json()).then(l => {
+    $('uf2Link').href = 'releases/' + l.file;
+    $('uf2Link').textContent = 'Download ' + l.file;
+    $('uf2Name').textContent = '(firmware v' + l.version + ' with MicroPython built in)';
+  }).catch(() => { $('uf2Name').textContent = '— release file not found on this site'; });
+
+  // ---------------- serial plumbing ----------------
+  if (!('serial' in navigator)) { $('noSerial').hidden = false; $('connectBtn').disabled = true; }
+
+  let port = null, reader = null, writer = null, rx = '', mode = 'app', readLoopDone = null;
+  const enc = new TextEncoder();
+
+  async function connect() {
+    try {
+      port = await navigator.serial.requestPort({ filters: [{ usbVendorId: 0x2E8A }] });
+    } catch (e) { return; }
+    await port.open({ baudRate: 115200 });
+    writer = port.writable.getWriter();
+    readLoopDone = readLoop();
+    setConnected(true);
+    log('connected', 'tx');
+    // if the board is at a Python prompt (crashed or interrupted), restart the firmware
+    rx = '';
+    await write('\r\n');
+    await sleep(400);
+    if (/>>>/.test(rx) || /raw REPL/.test(rx)) { log('board was at the REPL - restarting firmware', 'tx'); await write('\x02\x04'); await sleep(2500); }
+    await write('telemetry on\nstatus\n');
+  }
+
+  async function disconnect() {
+    try { await write('telemetry off\n'); } catch (e) {}
+    try { reader && await reader.cancel(); } catch (e) {}
+    try { await readLoopDone; } catch (e) {}
+    try { writer && writer.releaseLock(); } catch (e) {}
+    try { port && await port.close(); } catch (e) {}
+    port = reader = writer = null;
+    setConnected(false);
+  }
+
+  navigator.serial && navigator.serial.addEventListener('disconnect', e => { if (port && e.target === port) { setConnected(false); log('USB disconnected', 'tx'); port = null; } });
+
+  async function readLoop() {
+    const dec = new TextDecoder();
+    while (port && port.readable) {
+      reader = port.readable.getReader();
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          rx += dec.decode(value, { stream: true });
+          if (mode === 'app') drainLines();
+        }
+      } catch (e) { log('read error: ' + e.message, 'tx'); break; }
+      finally { reader.releaseLock(); reader = null; }
+    }
+  }
+
+  async function write(s) { if (!writer) throw new Error('not connected'); await writer.write(enc.encode(s)); }
+
+  function drainLines() {
+    let i;
+    while ((i = rx.indexOf('\n')) >= 0) {
+      const line = rx.slice(0, i).replace(/\r$/, '');
+      rx = rx.slice(i + 1);
+      handleLine(line);
+    }
+  }
+
+  // ---------------- lines from the controller ----------------
+  let status = null, lastStatusAt = 0, logCapture = null;
+
+  function handleLine(line) {
+    if (line.startsWith('@')) {
+      let obj; try { obj = JSON.parse(line.slice(1)); } catch (e) { log(line, 'j'); return; }
+      if ('fw' in obj && 'state' in obj) { status = obj; lastStatusAt = Date.now(); renderStatus(obj); pushSample(obj); }
+      else if (obj.prompt !== undefined || obj.test !== undefined || obj.selftest !== undefined) handleTestEvent(obj);
+      log(line, 'j');
+      return;
+    }
+    if (logCapture) {
+      if (line.startsWith('--- end of log')) { finishLogDownload(); } else { logCapture.push(line); }
+      return;
+    }
+    log(line);
+  }
+
+  // ---------------- dashboard ----------------
+  const fmtTime = ms => { const s = Math.floor(ms / 1000); return [s / 3600, (s % 3600) / 60, s % 60].map(n => String(Math.floor(n)).padStart(2, '0')).join(':'); };
+  const bandClass = b => b === 'OK' ? 'c-green' : b === '--' ? 'c-dim' : b === '>120' ? 'c-amber' : 'c-red';
+
+  function renderStatus(s) {
+    const st = $('tState');
+    const map = { stopped: ['STOP', 'c-red', 'bg-red', 'Stopped'], running: ['RUN', 'c-green', 'bg-green', 'At speed'],
+                  ramping: ['RAMP', 'c-amber', 'bg-amber', 'Accelerating to ' + s.rpm + ' RPM'], fault: ['STOP', 'c-red', 'bg-red', 'Stopped itself'] };
+    const [word, cls, bg, sub] = map[s.state] || ['?', 'c-dim', '', s.state];
+    st.className = 'tile state ' + bg;
+    st.querySelector('.v').textContent = word; st.querySelector('.v').className = 'v ' + cls;
+    $('tStateS').textContent = sub;
+    $('tTimer').textContent = fmtTime(s.run_ms);
+    $('tRpm').textContent = s.state === 'ramping' ? s.actual : s.rpm;
+    $('tRpmS').textContent = s.state === 'ramping' ? 'actual → target ' + s.rpm : 'cage RPM' + (s.sel === 'rpm' ? ' · knob' : '');
+    $('tRatio').textContent = '×' + Number(s.ratio).toFixed(2);
+    $('tRatioS').textContent = s.ratio === 0 ? 'inner cage off' : 'inner ' + (Math.round(s.rpm * s.ratio * 10) / 10) + ' RPM' + (s.sel === 'ratio' ? ' · knob' : '');
+    $('tM1').textContent = s.m1; $('tM1').className = 'v ' + bandClass(s.m1);
+    $('tM2').textContent = s.m2; $('tM2').className = 'v ' + bandClass(s.m2);
+    for (const [k, b, v] of [['tL1', 'bL1', s.load1], ['tL2', 'bL2', s.load2]]) {
+      $(k).textContent = v == null ? '—' : v; $(b).style.width = v == null ? '0' : (v / 510 * 100) + '%';
+      $(b).style.background = v == null ? '' : v < 100 ? 'var(--red)' : v < 200 ? 'var(--amber)' : 'var(--green)';
+    }
+    const fanText = { off: 'OFF', run: 'ON', max: 'MAX', cool: 'COOL' }[s.fan] || s.fan;
+    $('tFan').textContent = fanText; $('tFan').className = 'v ' + (s.fan === 'max' ? 'c-amber' : s.fan === 'off' ? 'c-dim' : 'c-green');
+    $('tFanS').textContent = s.fan === 'cool' ? 'running on after stop' : s.fan === 'max' ? 'a driver is hot' : s.fan_pct ? s.fan_pct + '%' : '';
+    $('tFw').textContent = 'v' + s.fw;
+    $('tFwS').textContent = 'up ' + fmtTime(s.up * 1000) + ' · ' + Math.round(s.mem / 1024) + 'K free' + (s.btn_ok ? '' : ' · BUTTON FAULT');
+    $('uBoard').textContent = 'v' + s.fw;
+    const strip = $('strip'); const w = s.stop || s.warn;
+    if (w) {
+      const [kind, n] = w;
+      const text = { hot: 'DRIVER ' + n + ' HOT — fan at maximum, still running', over: 'DRIVER ' + n + ' OVERHEATED — machine stopped itself',
+                     power: 'DRIVER ' + n + ' LOST ITS SETTINGS — 12 V dropping out, machine stopped' }[kind] || kind;
+      strip.textContent = text; strip.className = 'strip ' + (kind === 'hot' ? 'bg-amber c-amber' : 'bg-red c-red'); strip.style.display = 'block';
+    } else strip.style.display = 'none';
+    $('startBtn').disabled = s.state !== 'stopped' && s.state !== 'fault';
+    $('stopBtn').disabled = !(s.state === 'running' || s.state === 'ramping');
+    updateButtons();
+  }
+
+  // load chart
+  const samples = [];
+  function pushSample(s) { samples.push([s.load1, s.load2]); if (samples.length > 240) samples.shift(); drawChart(); }
+  function drawChart() {
+    const c = $('chart'), ctx = c.getContext('2d'), W = c.width, H = c.height;
+    ctx.clearRect(0, 0, W, H);
+    ctx.strokeStyle = '#2a333d'; ctx.lineWidth = 1;
+    for (const y of [100, 200, 300, 400, 510]) { const py = H - y / 510 * (H - 10) - 5; ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(W, py); ctx.stroke(); }
+    ctx.fillStyle = '#8e99a4'; ctx.font = '11px ' + getComputedStyle(document.body).getPropertyValue('--mono'); ctx.fillText('510', 4, 12); ctx.fillText('0', 4, H - 6);
+    [['#20c0f8', 0], ['#f8a400', 1]].forEach(([col, k]) => {
+      ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath(); let pen = false;
+      samples.forEach((s, i) => { const v = s[k]; const x = W - (samples.length - 1 - i) * (W / 240); if (v == null) { pen = false; return; }
+        const y = H - v / 510 * (H - 10) - 5; if (!pen) { ctx.moveTo(x, y); pen = true; } else ctx.lineTo(x, y); });
+      ctx.stroke();
+    });
+    ctx.fillStyle = '#20c0f8'; ctx.fillText('M1 outer', W - 130, 14); ctx.fillStyle = '#f8a400'; ctx.fillText('M2 inner', W - 60, 14);
+  }
+  drawChart();
+
+  // controls
+  $('startBtn').onclick = () => write('start\n');
+  $('stopBtn').onclick = () => write('stop\n');
+  $('rpmBtn').onclick = () => write('rpm ' + parseInt($('rpmIn').value, 10) + '\n');
+  $('ratioBtn').onclick = () => write('ratio ' + parseFloat($('ratioIn').value).toFixed(2) + '\n');
+  $('rebootBtn').onclick = async () => { await write('reboot\n'); await sleep(3000); await write('telemetry on\n'); };
+
+  function setConnected(on) {
+    $('dot').classList.toggle('on', on);
+    $('connText').textContent = on ? 'Connected' : 'Not connected'; $('connText').className = on ? 'c-green' : 'c-dim';
+    $('connectBtn').hidden = on; $('disconnectBtn').hidden = !on; $('hint').hidden = on;
+    ['rpmBtn', 'ratioBtn', 'rebootBtn', 'testBtn', 'cmdIn', 'cmdBtn', 'logBtn'].forEach(id => $(id).disabled = !on);
+    if (!on) { $('startBtn').disabled = $('stopBtn').disabled = true; status = null; }
+    updateButtons();
+  }
+  function updateButtons() { $('updateBtn').disabled = !(port && manifest && status && !busy); }
+  $('connectBtn').onclick = connect;
+  $('disconnectBtn').onclick = disconnect;
+
+  // ---------------- console ----------------
+  const con = $('console'); let lines = 0;
+  function log(text, cls) {
+    const span = document.createElement('span'); if (cls) span.className = cls; span.textContent = text + '\n'; con.appendChild(span);
+    if (++lines > 600) { con.removeChild(con.firstChild); lines--; }
+    con.scrollTop = con.scrollHeight;
+  }
+  function sendCmd() { const v = $('cmdIn').value.trim(); if (!v) return; log('> ' + v, 'tx'); write(v + '\n'); $('cmdIn').value = ''; }
+  $('cmdBtn').onclick = sendCmd; $('cmdIn').onkeydown = e => { if (e.key === 'Enter') sendCmd(); };
+  $('clearBtn').onclick = () => { con.textContent = ''; lines = 0; };
+  $('logBtn').onclick = () => { logCapture = []; write('log\n'); };
+  function finishLogDownload() {
+    const text = logCapture.join('\n'); logCapture = null;
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+    a.download = 'rotocast-sweep-log.txt'; a.click(); log('sweep log downloaded (' + text.length + ' bytes)', 'tx');
+  }
+
+  // ---------------- self-test ----------------
+  const tbody = $('testTable').querySelector('tbody');
+  function handleTestEvent(o) {
+    if (o.selftest === 'start') { tbody.innerHTML = ''; $('testTable').hidden = false; $('testSummary').hidden = true; $('testState').textContent = 'running… follow the prompts'; goto('test'); }
+    if (o.prompt !== undefined) { $('testPrompt').textContent = o.prompt.replace(/ - /, ' — '); $('testPrompt').style.display = 'block'; }
+    if (o.test !== undefined) {
+      $('testPrompt').style.display = 'none';
+      const tr = document.createElement('tr');
+      const col = { PASS: 'c-green', FAIL: 'c-red', WARN: 'c-amber', INFO: 'c-dim' }[o.status] || '';
+      tr.innerHTML = '<td>' + o.test + '</td><td class="st ' + col + '">' + o.status + '</td><td class="c-dim">' + o.detail + '</td>';
+      tbody.appendChild(tr);
+    }
+    if (o.selftest === 'done') {
+      $('testPrompt').style.display = 'none'; $('testState').textContent = '';
+      const n = o.fails; const box = $('testSummary'); box.hidden = false;
+      box.className = 'notice ' + (n ? 'bad' : 'ok');
+      box.innerHTML = n ? '<b>' + n + ' check' + (n > 1 ? 's' : '') + ' failed.</b> A FAIL on BUTTON with "STUCK ON" or a dark screen points to the Rev 2 reworks; NO REPLY on the drivers usually means no 12 V.'
+                        : '<b>All checks passed.</b> The results also stay on the controller\'s screen for a minute; press the knob there to dismiss them.';
+    }
+  }
+  $('testBtn').onclick = () => { if (confirm('The motors will jog slowly and the fan will run. Keep hands clear of the cages. Run the self-test?')) write('selftest\n'); };
+
+  // ---------------- firmware update over the raw REPL ----------------
+  let busy = false;
+  function expect(pattern, ms) {
+    return new Promise((resolve, reject) => {
+      const t0 = Date.now();
+      (function poll() {
+        const i = rx.indexOf(pattern);
+        if (i >= 0) { const before = rx.slice(0, i); rx = rx.slice(i + pattern.length); return resolve(before); }
+        if (Date.now() - t0 > ms) return reject(new Error('timed out waiting for ' + JSON.stringify(pattern) + '; got ' + JSON.stringify(rx.slice(-120))));
+        setTimeout(poll, 15);
+      })();
+    });
+  }
+  async function enterRaw() {
+    mode = 'raw';
+    await write('\r\x03\x03'); await sleep(300); rx = '';
+    await write('\r\x01');
+    await expect('raw REPL; CTRL-B to exit\r\n>', 4000);
+  }
+  async function rawExec(code) {
+    rx = '';
+    for (let i = 0; i < code.length; i += 256) { await write(code.slice(i, i + 256)); await sleep(8); }
+    await write('\x04');
+    await expect('OK', 4000);
+    const out = await expect('\x04', 20000);
+    const err = await expect('\x04', 4000);
+    await expect('>', 4000);
+    if (err.trim()) throw new Error(err.trim());
+    return out;
+  }
+  async function exitRaw() { await write('\x02'); await sleep(200); rx = ''; mode = 'app'; await write('\x04'); }
+
+  async function installFirmware() {
+    if (!manifest || !port || busy) return;
+    if (!confirm('Install firmware v' + manifest.version + ' on the connected controller? The machine stops while this runs (about 20 seconds).')) return;
+    busy = true; updateButtons();
+    const prog = $('updateProg'); prog.hidden = false; const bar = prog.querySelector('i'); bar.style.width = '0';
+    const state = s => { $('updateState').textContent = s; log('update: ' + s, 'tx'); };
+    $('updateDone').hidden = true;
+    try {
+      state('downloading files from this site');
+      const files = [];
+      for (const f of manifest.files) { const r = await fetch('firmware/' + f.name); if (!r.ok) throw new Error('could not fetch ' + f.name); files.push([f.name, new Uint8Array(await r.arrayBuffer())]); }
+      const total = files.reduce((a, [, d]) => a + d.length, 0); let done = 0;
+      state('stopping the firmware and opening the programming prompt');
+      await enterRaw();
+      await rawExec('import os, ubinascii\n');
+      for (const [name, data] of files) {
+        state('writing ' + name + ' (' + data.length + ' bytes)');
+        await rawExec("f = open('" + name + ".new', 'wb')\n");
+        for (let i = 0; i < data.length; i += 1536) {
+          const chunk = data.subarray(i, i + 1536);
+          let bin = ''; chunk.forEach(b => bin += String.fromCharCode(b));
+          await rawExec("f.write(ubinascii.a2b_base64('" + btoa(bin) + "'))\n");
+          done += chunk.length; bar.style.width = (done / total * 100) + '%';
+        }
+        await rawExec("f.close()\nos.rename('" + name + ".new', '" + name + "')\n");
+      }
+      state('removing compiled copies and checking');
+      await rawExec('for n in ' + JSON.stringify(manifest.remove) + ':\n    try:\n        os.remove(n)\n    except OSError:\n        pass\n');
+      const listing = await rawExec('print(sorted(os.listdir()))\n');
+      log('on board: ' + listing.trim(), 'tx');
+      state('restarting the controller');
+      await exitRaw();
+      await sleep(3500);
+      await write('telemetry on\nstatus\n');
+      bar.style.width = '100%';
+      $('updateDone').hidden = false; $('updateDone').className = 'notice ok';
+      $('updateDone').innerHTML = '<b>Installed v' + manifest.version + '.</b> The controller has restarted; the dashboard shows its new version once it reports in.';
+      state('');
+    } catch (e) {
+      log('update failed: ' + e.message, 'tx');
+      $('updateDone').hidden = false; $('updateDone').className = 'notice bad';
+      $('updateDone').innerHTML = '<b>Update failed:</b> ' + e.message + '. The controller may be sitting at a Python prompt — click Reboot controller, or unplug and replug it, then try again.';
+      try { await exitRaw(); } catch (e2) {}
+      state('');
+    } finally { busy = false; updateButtons(); }
+  }
+  $('updateBtn').onclick = installFirmware;
+})();
+</script>
+</body>
+</html>
