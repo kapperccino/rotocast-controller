@@ -21,7 +21,9 @@ fi
 
 if [ -d /Volumes/RPI-RP2 ]; then
     echo "Blank board in BOOTSEL mode - installing MicroPython from $UF2"
-    cp "$UF2" /Volumes/RPI-RP2/ 2>/dev/null || true   # the board reboots mid-copy, that is normal
+    # -X: no extended attributes; macOS fails the copy over them on this drive.
+    # The board reboots as soon as the file lands, so an I/O error here is normal.
+    cp -X "$UF2" /Volumes/RPI-RP2/ 2>/dev/null || true
     for i in $(seq 1 30); do
         sleep 1
         ls /dev/cu.usbmodem* >/dev/null 2>&1 && break

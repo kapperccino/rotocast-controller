@@ -10,12 +10,14 @@ reset to defaults).
 
 How it works: the firmware files are packed into a LittleFS filesystem
 image with the same geometry MicroPython formats on this board (4 KB
-blocks, 352 of them, at flash offset FS_OFFSET), that image is cut into
-UF2 blocks addressed at the filesystem's place in flash, and those are
-appended to the stock MicroPython UF2. The RP2040's bootloader writes
-both in one go. Sectors that are entirely erased (0xFF) are left out of
-the file, which keeps it small; LittleFS never reads a block it has not
-written.
+blocks, 352 of them, at flash offset FS_OFFSET). The output is ONE
+LINEAR image of the whole 2 MB flash - MicroPython's blocks, 0xFF
+padding, then the filesystem - cut into UF2 blocks in address order.
+The RP2040 bootrom expects a UF2 to be linear (block N at base + 256*N)
+and silently loses blocks that are not; a sparse first attempt left the
+filesystem half-written. Linear costs a 4 MB file and a few more
+seconds in the bootloader, and is deterministic: every byte of flash is
+defined, so a reused board ends up identical to a blank one.
 
 Modules other than main.py are pre-compiled with mpy-cross so the board
 boots faster and keeps more RAM. Needs:  pip3 install littlefs-python mpy-cross
@@ -40,6 +42,7 @@ MICROPYTHON_UF2 = os.path.join(FIRMWARE, "RPI_PICO-20260824-v1.29.0.uf2")
 # the last 1408 KB hold the filesystem. Verified on the board by finding
 # LittleFS block 0 in the XIP address space.
 FLASH_BASE = 0x10000000
+FLASH_SIZE = 2 * 1024 * 1024
 FS_OFFSET = 0x0A0000
 BLOCK_SIZE = 4096
 BLOCK_COUNT = 352
@@ -106,14 +109,18 @@ def read_uf2(path):
         yield addr, blk[32:32 + size]
 
 
-def fs_blocks(image):
-    """UF2 payloads for the filesystem image, skipping fully erased sectors."""
-    for sector in range(0, len(image), BLOCK_SIZE):
-        chunk = image[sector:sector + BLOCK_SIZE]
-        if chunk == b"\xff" * len(chunk):
-            continue
-        for off in range(0, len(chunk), PAYLOAD):
-            yield FLASH_BASE + FS_OFFSET + sector + off, chunk[off:off + PAYLOAD]
+def linear_blocks(mp_blocks, image):
+    """One block for every 256-byte page of the 2 MB flash, in order:
+    MicroPython where it has data, the filesystem image at FS_OFFSET,
+    0xFF everywhere else."""
+    flash = bytearray(b"\xff" * FLASH_SIZE)
+    for addr, data in mp_blocks:
+        off = addr - FLASH_BASE
+        if off < 0 or off + len(data) > FS_OFFSET:
+            sys.exit("MicroPython block at 0x%08X overlaps the filesystem" % addr)
+        flash[off:off + len(data)] = data
+    flash[FS_OFFSET:FS_OFFSET + len(image)] = image
+    return [(FLASH_BASE + off, bytes(flash[off:off + PAYLOAD])) for off in range(0, FLASH_SIZE, PAYLOAD)]
 
 
 def write_uf2(path, blocks):
@@ -140,13 +147,14 @@ def main():
         image = build_filesystem(files)
 
     mp_blocks = list(read_uf2(MICROPYTHON_UF2))
-    fs_part = list(fs_blocks(image))
-    print("  MicroPython: %d blocks, filesystem: %d blocks (%d KB used of %d KB)"
-          % (len(mp_blocks), len(fs_part), len(fs_part) * PAYLOAD // 1024, BLOCK_COUNT * BLOCK_SIZE // 1024))
+    used = sum(1 for s in range(0, len(image), BLOCK_SIZE) if image[s:s + BLOCK_SIZE] != b"\xff" * BLOCK_SIZE)
+    print("  MicroPython: %d KB, filesystem: %d of %d sectors used"
+          % (len(mp_blocks) * PAYLOAD // 1024, used, BLOCK_COUNT))
 
+    blocks = linear_blocks(mp_blocks, image)
     os.makedirs(RELEASES, exist_ok=True)
     out = os.path.join(RELEASES, "rotocast-v4-%s.uf2" % version)
-    write_uf2(out, mp_blocks + fs_part)
+    write_uf2(out, blocks)
 
     with open(os.path.join(RELEASES, "latest.json"), "w") as f:
         json.dump({"version": version, "file": os.path.basename(out),
