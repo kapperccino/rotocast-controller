@@ -10,6 +10,10 @@
 #   Button     = start / stop
 #   Knob press = next menu item (SPEED / RATIO)
 #   Knob turn  = change the selected item
+#   Knob held while powering on = hardware self test (selftest.py)
+#
+# The USB serial port takes text commands and streams status as JSON for
+# the web dashboard - see the SERIAL CONSOLE section and 'help'.
 #
 # MOTOR 2 is the inside motor. Its speed is RPM * ratio.
 #

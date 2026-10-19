@@ -181,10 +181,11 @@
       <li><a id="uf2Link" href="#" download>Download the firmware file</a> <span id="uf2Name" class="c-dim"></span></li>
       <li><b>Hold the BOOTSEL button</b> on the board and, while holding it, plug the USB cable into this computer. Let go.
         A drive called <code>RPI-RP2</code> appears on the desktop or in the file manager.</li>
-      <li>Drag the downloaded <code>.uf2</code> file onto the <code>RPI-RP2</code> drive. The drive disappears by itself when it is done (about 10 seconds).
+      <li>Drag the downloaded <code>.uf2</code> file onto the <code>RPI-RP2</code> drive. It is a 4 MB file; the drive disappears by itself when it is done (about 25 seconds).
         Ignore any "disk not ejected properly" message — that is normal.</li>
       <li>The board restarts: the LED lights red and the screen shows the <b>ROTOCAST</b> splash, then <b>STOP</b>.
-        If the LED is red but the screen stays dark, the board still needs the two Rev 2 reworks (SW3 and Q3) — see the project README.</li>
+        If the LED is red but the screen stays dark, the board still needs the two Rev 2 reworks (SW3 and Q3) — see the
+        <a href="https://github.com/kapperccino/rotocast-controller#known-hardware-issues-rev-2" target="_blank" rel="noopener">known hardware issues</a> in the project README.</li>
       <li>Click <b>Connect</b> at the top, pick the new port, and run the <a href="#" data-goto="test">self-test</a>.</li>
     </ol>
     <p class="c-dim">The same file also works to update a controller that already runs the firmware: it resets the saved speed and ratio to defaults.</p>
@@ -203,6 +204,12 @@
       <button id="clearBtn">Clear</button>
     </div>
   </section>
+
+  <p style="margin-top:40px;padding-top:14px;border-top:1px solid var(--rule);color:var(--dim);font-size:.85rem;max-width:none">
+    HackMakeMod Rotocast Controller V4 · source, documentation and the full README at
+    <a href="https://github.com/kapperccino/rotocast-controller" target="_blank" rel="noopener">github.com/kapperccino/rotocast-controller</a>
+    · this page: Chrome or Edge on a Mac or PC, controller on USB.
+  </p>
 </main>
 
 <script>

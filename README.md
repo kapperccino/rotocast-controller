@@ -15,7 +15,10 @@ Running on the assembled frame with the shipped regulated 12 V supply:
 speed (silent, like the original controller), a fan on the driver modules,
 and the over-temperature and 12 V-dropout stops armed. This is the highest
 current that stayed under 120 °C in the thermal sweep; more torque needs
-more air over the J2 module (M1), which is the one that runs hot.
+more air over the J2 module (M1), which is the one that runs hot. Firmware
+1.1.0. New boards are flashed by drag-and-drop and controllers are updated,
+tested and watched from **https://kapperccino.github.io/rotocast-controller/**
+— no software to install.
 
 ## Folder layout
 
@@ -44,8 +47,10 @@ more air over the J2 module (M1), which is the one that runs hot.
 ## Hardware
 
 Board `002_Rotocast_ControllerV2`, RP2040 with 2 MB flash, USB-C for power
-and programming, 12 V input for the motors. Two boards have been built and
-both needed the same two reworks (SW3 and Q3 — see the bring-up report).
+and programming, 12 V input for the motors. Every board from the first fab
+run needs the same two hand reworks before it is usable (SW3 and Q3 — see
+the bring-up report and the table at the end); the self-test tells you
+whether a board has had them.
 
 | Function | Part | GPIO |
 |---|---|---|
@@ -75,6 +80,10 @@ Three physical controls, no touch:
 - **Button** — Start / Stop.
 - **Knob press** — moves the selection between `RPM` and `RATIO` (the cyan chip).
 - **Knob turn** — changes the selected value immediately, also while running.
+- **Knob held while powering on** — runs the hardware self-test (see Programming).
+
+A controller plugged into a computer by USB can also be watched and driven
+from the web page (see *The web flasher and dashboard*).
 
 The screen and the status LED share one colour language:
 
@@ -166,8 +175,11 @@ C-level blit. If colours ever look wrong on a new panel batch, flip
 
 **Serial console.** The firmware prints what it is doing (driver
 configuration, temperature band changes, run/stop with settings, warnings)
-at 115200 on the USB port. `python3 -m mpremote connect /dev/cu.usbmodem101
-repl` shows it; Ctrl-] leaves.
+at 115200 on the USB port, and takes the text commands listed under *The web
+flasher and dashboard*. The easiest way to see it is the site's *Console*
+tab; from a terminal, `python3 -m mpremote connect /dev/cu.usbmodemXXXX repl`
+(Ctrl-] leaves). The port name depends on the USB socket — `ls
+/dev/cu.usbmodem*` finds it.
 
 ## Programming a board
 
