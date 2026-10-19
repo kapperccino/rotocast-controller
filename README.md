@@ -23,6 +23,7 @@ more air over the J2 module (M1), which is the one that runs hot.
 |---|---|
 | `firmware/rotocast_v4.py` | The firmware. Goes onto the board as `main.py`. |
 | `firmware/rotocast_ui.py` | The screen: layout, font, icons. `rotocast_v4.py` tells it what state to show. |
+| `firmware/selftest.py` | The hardware self-test (knob held at power-up, or `selftest` over serial). |
 | `firmware/st7789py.py` | Display driver (copy of `vendor/`), goes onto the board unchanged. |
 | `firmware/RPI_PICO-*.uf2` | MicroPython 1.29.0 for a blank board. |
 | `firmware/bench/thermal_sweep.py` | Finds the highest motor current the drivers hold under load. Runs from the Mac and pauses the firmware while it does. |
@@ -31,8 +32,12 @@ more air over the J2 module (M1), which is the one that runs hot.
 | `docs/Rotocast Controller V4 - Bring-Up Report.pdf` | First power-up findings: two board faults and their reworks, thermal limits, supply notes. Read this before ordering another batch. |
 | `docs/thermal-sweep-2026-10-17.md` | Measured current ceiling under load, per chopper mode and speed. Where `TMC_RUN_CURRENT` comes from. |
 | `docs/design_handoff_rotocast_ui/` | The screen design: spec, reference PNGs, font and icon data, interactive review board. |
-| `tools/flash.sh` | Programs a board, blank or not. |
+| `web/index.html` | The flasher / diagnostics page, published to GitHub Pages. |
+| `tools/flash.sh` | Developer flash of a connected board, blank or not. |
+| `tools/build_uf2.py` | Builds the single-file release image (MicroPython + firmware). |
+| `tools/build_site.py` | Assembles the Pages site with the firmware files and release. |
 | `tools/verify_ui.py` | Renders every screen state on the Mac, no hardware needed. |
+| `.github/workflows/pages.yml` | On every push: build the release and publish the site. |
 | `vendor/` | Third-party source as downloaded. |
 | `archive/` | The original 2023 Arduino firmware, its 2024 rewrite, and the bring-up test scripts. Reference only; see its README. |
 
@@ -166,45 +171,100 @@ repl` shows it; Ctrl-] leaves.
 
 ## Programming a board
 
-Needs Python 3 and `mpremote` on the Mac:
+Everything below needs no software on the computer except Chrome. The
+developer path with `mpremote` is further down.
+
+### A blank board — drag and drop
+
+1. Open **https://kapperccino.github.io/rotocast-controller/** → *New board*
+   and download `rotocast-v4-<version>.uf2`. It contains MicroPython and the
+   firmware together.
+2. Hold the **BOOTSEL** button on the board while plugging in the USB cable.
+   A drive called `RPI-RP2` appears.
+3. Drag the `.uf2` onto it. About 25 seconds later the drive disappears and
+   the board restarts into the firmware: LED red, splash screen, `STOP`.
+   A "disk not ejected properly" message is normal.
+
+The file is a linear image of the whole 2 MB flash, so a reused board ends up
+identical to a blank one (saved speed/ratio are reset). It also works as a
+no-tools way to update an existing controller.
+
+### Updating a controller that already runs — from the browser
+
+Open the same site in Chrome or Edge, plug the controller into USB, click
+**Connect**, choose the `usbmodem` port, then *Update firmware* → **Install**.
+About 20 seconds; saved settings are kept. The *Dashboard* shows the version
+it is running.
+
+### Self-test
+
+Hold the **knob** down while powering the controller on (or press *Run
+self-test* on the site). It shows colour bars, flashes the LED, asks for the
+button and knob, reads both drivers' chip versions, jogs each motor slowly
+for 3 s while watching for open or shorted coils, runs the fan, and lists
+PASS/FAIL per line on the screen (knob scrolls, knob press exits). The same
+report streams on the serial console. On an unreworked Rev 2 board it says
+`BUTTON FAIL STUCK ON - SW3`; a dark screen with a red LED is Q3.
+
+### Developer path
 
 ```bash
-pip3 install --user mpremote
+pip3 install --user mpremote littlefs-python "mpy-cross==1.29.0.post2"
 ```
-
-Then, with the board on USB:
 
 ```bash
 tools/flash.sh
 ```
 
-That copies `rotocast_v4.py` (as `main.py`), `rotocast_ui.py` and
-`st7789py.py` to the board and restarts it. Saved settings on the board are
-left alone.
-
-**A blank board** (fresh RP2040, no MicroPython) has to be put into BOOTSEL
-mode first: hold the BOOTSEL button while plugging in the USB cable. It mounts
-as a drive called `RPI-RP2`. `tools/flash.sh` notices this, installs
-MicroPython from `firmware/RPI_PICO-20260824-v1.29.0.uf2`, waits for the
-board to come back as a serial port, and then flashes the firmware as above.
-
-By hand, the same thing is:
+copies the source files to a connected board (blank or not — it installs
+MicroPython first if it sees `RPI-RP2`) and restarts it. Saved settings are
+kept, and any compiled `.mpy` copies left by a release image are removed so
+the source always wins.
 
 ```bash
-cp firmware/RPI_PICO-20260824-v1.29.0.uf2 /Volumes/RPI-RP2/
+python3 tools/build_uf2.py
 ```
 
-```bash
-cd firmware && python3 -m mpremote connect /dev/cu.usbmodem101 cp rotocast_v4.py :main.py + cp rotocast_ui.py :rotocast_ui.py + cp st7789py.py :st7789py.py + reset
-```
+builds `releases/rotocast-v4-<version>.uf2` locally; the GitHub workflow
+does the same on every push, so normally you never run it.
 
-The port name depends on which USB socket the board is in; `ls
-/dev/cu.usbmodem*` finds it. Programming over USB is safe with the motors
-connected: the drivers are disabled at boot and stay disabled until Start.
+Programming over USB is safe with the motors connected: the drivers are
+disabled at boot and stay disabled until Start. On USB only, the console says
+`No TMC replies` and the screen shows `M1 --` / `M2 --` with `NO 12V?` — the
+drivers answer once they have 12 V, and the firmware picks them up by itself.
 
-On first boot with USB only, the console says `No TMC replies` and the screen
-shows `M1 --` / `M2 --` with `NO 12V?` — the drivers only answer once they
-have 12 V, and the firmware picks them up automatically when it arrives.
+## The web flasher and dashboard
+
+**https://kapperccino.github.io/rotocast-controller/** — a static page that
+talks to a controller over USB with Web Serial (Chrome or Edge on a Mac or
+PC; not Safari, not Firefox, not phones). Source in `web/index.html`, one
+file, no build step.
+
+- **Dashboard** — live state, timer, speed, ratio, each driver's temperature
+  band and StallGuard load with a chart, fan, firmware version, warnings;
+  Start/Stop, set RPM and ratio, reboot.
+- **Self-test** — runs the on-board test and shows prompts and results live.
+- **Update firmware** — installs the site's version over the raw REPL (the
+  same protocol `mpremote` uses), then restarts the controller.
+- **New board** — the drag-and-drop steps and the `.uf2` download.
+- **Console** — everything the controller prints, a command line, and a
+  download of the thermal-sweep log.
+
+The controller side is the *serial console* in `rotocast_v4.py`: plain-text
+commands (`help`, `status`, `telemetry on`, `start`, `stop`, `rpm N`,
+`ratio X`, `selftest`, `log`, `reboot`) with machine-readable replies as
+`@{json}` lines, one status object a second while telemetry is on.
+
+## Releasing a new firmware
+
+1. Edit under `firmware/`, test with `tools/flash.sh`.
+2. Bump `FW_VERSION` in `firmware/rotocast_v4.py`.
+3. Commit and push to `main`.
+
+Within a minute the GitHub Actions workflow (`.github/workflows/pages.yml`)
+compiles the modules, builds the `.uf2`, and republishes the site. Anyone who
+reloads the page gets the new version; the dashboard shows what each
+controller is running.
 
 ## Working on the screen without a board
 
