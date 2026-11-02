@@ -32,6 +32,7 @@ tested and watched from **https://kapperccino.github.io/rotocast-controller/**
 | `firmware/bench/thermal_sweep.py` | Finds the highest motor current the drivers hold under load. Runs from the Mac and pauses the firmware while it does. |
 | `hardware/schematic-rev2.pdf` | Rev 2 schematic (KiCad 9). |
 | `hardware/002_Rotocast_ControllerV2_Y819/` | The fab package exactly as ordered (order 2963065A_Y819). |
+| `docs/schematic-rev2.pdf` | The Rev 2 schematic (one sheet, KiCad 9). Same file as in `hardware/`, kept here so it is in the public repo. |
 | `docs/Rotocast Controller V4 - Bring-Up Report.pdf` | First power-up findings: two board faults and their reworks, thermal limits, supply notes. Read this before ordering another batch. |
 | `docs/thermal-sweep-2026-10-17.md` | Measured current ceiling under load, per chopper mode and speed. Where `TMC_RUN_CURRENT` comes from. |
 | `docs/design_handoff_rotocast_ui/` | The screen design: spec, reference PNGs, font and icon data, interactive review board. |
@@ -47,7 +48,8 @@ tested and watched from **https://kapperccino.github.io/rotocast-controller/**
 ## Hardware
 
 Board `002_Rotocast_ControllerV2`, RP2040 with 2 MB flash, USB-C for power
-and programming, 12 V input for the motors. Every board from the first fab
+and programming, 12 V input for the motors. Schematic:
+[docs/schematic-rev2.pdf](docs/schematic-rev2.pdf). Every board from the first fab
 run needs the same two hand reworks before it is usable (SW3 and Q3 — see
 the bring-up report and the table at the end); the self-test tells you
 whether a board has had them.
